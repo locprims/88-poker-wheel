@@ -1,6 +1,90 @@
 const prizes=[10,20,30,40,50,88], canvas=document.getElementById("wheel"),ctx=canvas.getContext("2d"),btn=document.getElementById("spin"),statusEl=document.getElementById("status"),result=document.getElementById("result");
 let rotation=0,busy=false;const arc=Math.PI*2/prizes.length;
-function draw(){const c=450,r=414;ctx.clearRect(0,0,900,900);prizes.forEach((p,i)=>{let s=-Math.PI/2+i*arc,e=s+arc,g=ctx.createRadialGradient(c,c,60,c,c,r);g.addColorStop(0,i%2?"#d8a84f":"#7d571f");g.addColorStop(1,i%2?"#5b3911":"#1c1308");ctx.beginPath();ctx.moveTo(c,c);ctx.arc(c,c,r,s,e);ctx.closePath();ctx.fillStyle=g;ctx.fill();ctx.lineWidth=7;ctx.strokeStyle="#e3bd67";ctx.stroke();ctx.save();ctx.translate(c,c);ctx.rotate(s+arc/2);ctx.textAlign="right";ctx.textBaseline="middle";ctx.fillStyle="#fff0c4";ctx.font=`900 ${p===88?58:54}px Arial`;ctx.fillText(p+" $",r-58,0);if(p===88){ctx.font="900 22px Arial";ctx.fillText("JACKPOT",r-62,38)}ctx.restore()});ctx.beginPath();ctx.arc(c,c,92,0,Math.PI*2);ctx.fillStyle="#080604";ctx.fill();ctx.lineWidth=10;ctx.strokeStyle="#d9ae5a";ctx.stroke();ctx.fillStyle="#f2d184";ctx.textAlign="center";ctx.font="900 66px Georgia";ctx.fillText("88",c,c+18)}
+function draw(){
+  const c=450,r=366,TAU=Math.PI*2;
+  ctx.clearRect(0,0,900,900);
+  ctx.save();
+
+  // Outer shadow / depth
+  ctx.beginPath();ctx.arc(c,c,425,0,TAU);
+  ctx.shadowColor="rgba(0,0,0,.9)";ctx.shadowBlur=34;ctx.shadowOffsetY=15;
+  ctx.fillStyle="#050403";ctx.fill();ctx.shadowColor="transparent";
+
+  // Luxury metallic outer rings
+  const rim=ctx.createRadialGradient(c-95,c-120,80,c,c,430);
+  rim.addColorStop(0,"#fff0a4");rim.addColorStop(.22,"#b87518");
+  rim.addColorStop(.5,"#fff0a0");rim.addColorStop(.72,"#7a430c");rim.addColorStop(1,"#f4c55d");
+  ctx.beginPath();ctx.arc(c,c,424,0,TAU);ctx.fillStyle=rim;ctx.fill();
+  ctx.beginPath();ctx.arc(c,c,406,0,TAU);ctx.fillStyle="#090704";ctx.fill();
+  ctx.lineWidth=5;ctx.strokeStyle="#f7d26e";ctx.stroke();
+  ctx.beginPath();ctx.arc(c,c,390,0,TAU);ctx.lineWidth=9;ctx.strokeStyle="#9b5b12";ctx.stroke();
+
+  // Warm bulbs around the rim
+  for(let i=0;i<24;i++){
+    const a=-Math.PI/2+i*TAU/24,x=c+398*Math.cos(a),y=c+398*Math.sin(a);
+    ctx.save();ctx.shadowColor="#ffb526";ctx.shadowBlur=18;
+    const bulb=ctx.createRadialGradient(x-2,y-2,1,x,y,9);
+    bulb.addColorStop(0,"#fffbe0");bulb.addColorStop(.35,"#ffd66a");bulb.addColorStop(1,"#9a5008");
+    ctx.beginPath();ctx.arc(x,y,7.5,0,TAU);ctx.fillStyle=bulb;ctx.fill();ctx.restore();
+  }
+
+  // Prize sectors — same six prizes, only visual treatment changed
+  prizes.forEach((p,i)=>{
+    const s=-Math.PI/2+i*arc,e=s+arc;
+    const g=ctx.createRadialGradient(c-55,c-65,65,c,c,r);
+    if(i%2){
+      g.addColorStop(0,"#d9aa52");g.addColorStop(.52,"#9a6827");g.addColorStop(1,"#4b2d0b");
+    }else{
+      g.addColorStop(0,"#3c2b15");g.addColorStop(.55,"#17110a");g.addColorStop(1,"#050403");
+    }
+    ctx.beginPath();ctx.moveTo(c,c);ctx.arc(c,c,r,s,e);ctx.closePath();ctx.fillStyle=g;ctx.fill();
+
+    // Subtle inner highlight for 3D depth
+    ctx.save();ctx.clip();ctx.globalAlpha=.20;
+    const shine=ctx.createLinearGradient(c-r,c-r,c+r,c+r);
+    shine.addColorStop(0,"rgba(255,255,255,0)");
+    shine.addColorStop(.5,"rgba(255,224,151,.55)");
+    shine.addColorStop(1,"rgba(255,255,255,0)");
+    ctx.fillStyle=shine;ctx.fillRect(c-r,c-r,r*2,r*2);ctx.restore();
+
+    // Gold separators
+    ctx.beginPath();ctx.moveTo(c,c);ctx.lineTo(c+r*Math.cos(s),c+r*Math.sin(s));
+    ctx.lineWidth=5;ctx.strokeStyle="#e9bc5b";ctx.stroke();
+
+    // Prize amount
+    ctx.save();ctx.translate(c,c);ctx.rotate(s+arc/2);
+    ctx.textAlign="right";ctx.textBaseline="middle";
+    ctx.shadowColor="rgba(0,0,0,.9)";ctx.shadowBlur=8;ctx.shadowOffsetY=3;
+    ctx.fillStyle="#fff0bd";ctx.font=`900 ${p===88?58:54}px Arial`;
+    ctx.fillText(p+" $",r-52,0);
+    if(p===88){
+      ctx.font="900 21px Arial";ctx.fillStyle="#ffd76d";
+      ctx.fillText("JACKPOT",r-57,38);
+    }
+    ctx.restore();
+  });
+
+  // Inner gold ring around sectors
+  ctx.beginPath();ctx.arc(c,c,r,0,TAU);ctx.lineWidth=8;ctx.strokeStyle="#f1c55e";ctx.stroke();
+  ctx.beginPath();ctx.arc(c,c,r-10,0,TAU);ctx.lineWidth=2;ctx.strokeStyle="rgba(255,239,176,.72)";ctx.stroke();
+
+  // Premium center medallion
+  ctx.save();ctx.shadowColor="rgba(0,0,0,.9)";ctx.shadowBlur=22;
+  const hubRim=ctx.createRadialGradient(c-20,c-25,8,c,c,103);
+  hubRim.addColorStop(0,"#fff0a4");hubRim.addColorStop(.35,"#d59a31");hubRim.addColorStop(.72,"#6f3d0b");hubRim.addColorStop(1,"#f0c35b");
+  ctx.beginPath();ctx.arc(c,c,104,0,TAU);ctx.fillStyle=hubRim;ctx.fill();ctx.restore();
+  const hub=ctx.createRadialGradient(c-28,c-32,5,c,c,91);
+  hub.addColorStop(0,"#54401f");hub.addColorStop(.55,"#17110a");hub.addColorStop(1,"#030302");
+  ctx.beginPath();ctx.arc(c,c,88,0,TAU);ctx.fillStyle=hub;ctx.fill();
+  ctx.beginPath();ctx.arc(c,c,78,0,TAU);ctx.lineWidth=2;ctx.strokeStyle="rgba(255,220,130,.42)";ctx.stroke();
+
+  // Crown + 88 center
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.shadowColor="rgba(255,183,47,.45)";ctx.shadowBlur=12;
+  ctx.fillStyle="#f4cf77";ctx.font="900 36px Georgia";ctx.fillText("♛",c,c-37);
+  ctx.font="900 68px Georgia";ctx.fillText("88",c,c+20);
+  ctx.restore();
+}
 draw();
 const tg=window.Telegram?.WebApp; if(tg){tg.ready();tg.expand()}
 function headers(){return {"Content-Type":"application/json","X-Telegram-Init-Data":tg?.initData||""}}
