@@ -89,49 +89,62 @@ draw();
 const tg=window.Telegram?.WebApp; if(tg){tg.ready();tg.expand()}
 function headers(){return {"Content-Type":"application/json","X-Telegram-Init-Data":tg?.initData||""}}
 let remainingSpins=0;
+let refreshSequence=0;
 function updateSpinStatus(count){
-  remainingSpins=Math.max(0,Number(count)||0);
-  if(remainingSpins>0){
-    statusEl.textContent=`✅ ${remainingSpins} tour${remainingSpins>1?"s":""} disponible${remainingSpins>1?"s":""}`;
-  }else{
-    statusEl.textContent="🔒 Aucun tour disponible — validation requise";
-  }
+  const parsed=Number(count);
+  if(!Number.isFinite(parsed)) return;
+  remainingSpins=Math.max(0,Math.floor(parsed));
+  statusEl.textContent=remainingSpins>0
+    ? `✅ ${remainingSpins} tour${remainingSpins>1?"s":""} disponible${remainingSpins>1?"s":""}`
+    : "🔒 Aucun tour disponible — validation requise";
   btn.disabled=busy || remainingSpins===0;
 }
 async function load(){
+  const sequence=++refreshSequence;
   try{
-    const r=await fetch("/api/me",{headers:headers(),cache:"no-store"});
-    const d=await r.json();if(!r.ok)throw d;
-    updateSpinStatus(d.spins_available);
-  }catch(e){statusEl.textContent="Ouvrez cette roulette depuis le bot Telegram.";btn.disabled=true}
+    const r=await fetch(`/api/me?_=${Date.now()}`,{headers:headers(),cache:"no-store"});
+    const d=await r.json();
+    if(!r.ok) throw d;
+    if(sequence===refreshSequence) updateSpinStatus(d.spins_available);
+  }catch(e){
+    if(sequence===refreshSequence){
+      statusEl.textContent="Impossible de vérifier les crédits. Réessayez.";
+      btn.disabled=true;
+    }
+  }
 }
 load();
 btn.addEventListener("click",async()=>{
   if(busy || remainingSpins<=0)return;
   busy=true;btn.disabled=true;result.textContent="Bonne chance…";
+  ++refreshSequence; // Ignore any old /api/me response while a spin is running.
   try{
-    const r=await fetch("/api/spin",{method:"POST",headers:headers(),body:"{}"});
+    const r=await fetch("/api/spin",{method:"POST",headers:headers(),body:"{}",cache:"no-store"});
     const d=await r.json();if(!r.ok)throw d;
-    remainingSpins=Math.max(0,Number(d.spins_available)||0);
-    const idx=prizes.indexOf(d.prize),cur=((rotation%360)+360)%360;
+    if(!prizes.includes(Number(d.prize)))throw new Error("invalid_prize");
+    const serverBalance=Number(d.spins_available);
+    if(Number.isFinite(serverBalance))remainingSpins=Math.max(0,Math.floor(serverBalance));
+    else remainingSpins=Math.max(0,remainingSpins-1);
+    const idx=prizes.indexOf(Number(d.prize)),cur=((rotation%360)+360)%360;
     const slice=360/prizes.length;
-    // Pointer stops safely inside the winning sector.
     const margin=8;
     const jitter=(Math.random()*2-1)*(slice/2-margin);
     const target=(360-(idx*slice+slice/2+jitter))%360;
     const delta=(target-cur+360)%360;
     rotation+=360*7+delta;
     canvas.style.transform=`rotate(${rotation}deg)`;
-    setTimeout(()=>{
+    // Refresh balance after the spin, without requiring a page reload.
+    setTimeout(async()=>{
       result.textContent="";
       safeCelebrate(d.prize);
       busy=false;
       updateSpinStatus(remainingSpins);
+      await load();
     },5750);
   }catch(e){
-    result.textContent=e.error==="no_spin_available"?"Aucun tour disponible.":"Impossible d'effectuer le tirage.";
+    result.textContent=e?.error==="no_spin_available"?"Aucun tour disponible.":"Impossible d'effectuer le tirage.";
     busy=false;
-    if(e.error==="no_spin_available")updateSpinStatus(0);
+    if(e?.error==="no_spin_available")updateSpinStatus(0);
     else await load();
   }
 });
