@@ -88,20 +88,53 @@ function draw(){
 draw();
 const tg=window.Telegram?.WebApp; if(tg){tg.ready();tg.expand()}
 function headers(){return {"Content-Type":"application/json","X-Telegram-Init-Data":tg?.initData||""}}
-async function load(){try{let r=await fetch("/api/me",{headers:headers()}),d=await r.json();if(!r.ok)throw d;if(d.spins_available>0){statusEl.textContent="✅ Votre tour a été validé";btn.disabled=false}else{statusEl.textContent="🔒 Aucun tour disponible — validation requise";btn.disabled=true}}catch(e){statusEl.textContent="Ouvrez cette roulette depuis le bot Telegram.";btn.disabled=true}}
+let remainingSpins=0;
+function updateSpinStatus(count){
+  remainingSpins=Math.max(0,Number(count)||0);
+  if(remainingSpins>0){
+    statusEl.textContent=`✅ ${remainingSpins} tour${remainingSpins>1?"s":""} disponible${remainingSpins>1?"s":""}`;
+  }else{
+    statusEl.textContent="🔒 Aucun tour disponible — validation requise";
+  }
+  btn.disabled=busy || remainingSpins===0;
+}
+async function load(){
+  try{
+    const r=await fetch("/api/me",{headers:headers(),cache:"no-store"});
+    const d=await r.json();if(!r.ok)throw d;
+    updateSpinStatus(d.spins_available);
+  }catch(e){statusEl.textContent="Ouvrez cette roulette depuis le bot Telegram.";btn.disabled=true}
+}
 load();
-btn.addEventListener("click",async()=>{if(busy)return;busy=true;btn.disabled=true;result.textContent="Bonne chance…";try{let r=await fetch("/api/spin",{method:"POST",headers:headers(),body:"{}"}),d=await r.json();if(!r.ok)throw d;let idx=prizes.indexOf(d.prize),cur=((rotation%360)+360)%360;
-const slice=360/prizes.length;
-// La flèche reste à l'intérieur du lot gagnant, avec une position visuelle aléatoire.
-// Marge de sécurité pour éviter qu'elle tombe sur une séparation.
-const margin=8;
-const jitter=(Math.random()*2-1)*(slice/2-margin);
-// Le centre du premier secteur (10 $) est à -60°, alors que la flèche est à -90°.
-// Il faut donc appliquer un décalage supplémentaire de -30° pour aligner le bon secteur.
-const target=(360-(idx*slice+slice/2+jitter))%360;
-const delta=(target-cur+360)%360;
-rotation+=360*7+delta;canvas.style.transform=`rotate(${rotation}deg)`;setTimeout(()=>{result.textContent="";safeCelebrate(d.prize);statusEl.textContent="Tour utilisé — en attente d'une nouvelle validation";busy=false},5750)}catch(e){result.textContent=e.error==="no_spin_available"?"Aucun tour disponible.":"Impossible d'effectuer le tirage.";busy=false}});
-
+btn.addEventListener("click",async()=>{
+  if(busy || remainingSpins<=0)return;
+  busy=true;btn.disabled=true;result.textContent="Bonne chance…";
+  try{
+    const r=await fetch("/api/spin",{method:"POST",headers:headers(),body:"{}"});
+    const d=await r.json();if(!r.ok)throw d;
+    remainingSpins=Math.max(0,Number(d.spins_available)||0);
+    const idx=prizes.indexOf(d.prize),cur=((rotation%360)+360)%360;
+    const slice=360/prizes.length;
+    // Pointer stops safely inside the winning sector.
+    const margin=8;
+    const jitter=(Math.random()*2-1)*(slice/2-margin);
+    const target=(360-(idx*slice+slice/2+jitter))%360;
+    const delta=(target-cur+360)%360;
+    rotation+=360*7+delta;
+    canvas.style.transform=`rotate(${rotation}deg)`;
+    setTimeout(()=>{
+      result.textContent="";
+      safeCelebrate(d.prize);
+      busy=false;
+      updateSpinStatus(remainingSpins);
+    },5750);
+  }catch(e){
+    result.textContent=e.error==="no_spin_available"?"Aucun tour disponible.":"Impossible d'effectuer le tirage.";
+    busy=false;
+    if(e.error==="no_spin_available")updateSpinStatus(0);
+    else await load();
+  }
+});
 
 function safeCelebrate(prize){
   try{
