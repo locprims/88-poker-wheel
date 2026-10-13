@@ -1,4 +1,4 @@
-
+// Force Cloudflare deployment v17
 const prizes = [8, 18, 28, 38, 48, 88, 888];
 
 const canvas = document.getElementById("wheel");
